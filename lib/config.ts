@@ -13,7 +13,7 @@
 
 export const siteConfig = {
   name: "South Canara Real Estate",
-  tagline: "Coastal Roots, Lasting Homes.",
+  tagline: "Invest in Where Life Happens.",
   description:
     "South Canara Real Estate helps you discover, evaluate, and move into trusted properties across the coastal Karnataka region — with transparent pricing and a team that answers.",
   url: "https://www.southcanararealestate.com", // [PLACEHOLDER] set to production domain
@@ -22,10 +22,10 @@ export const siteConfig = {
     phone: "+91 9180208903", // [PLACEHOLDER]
     phoneDisplay: "+91 9180208903", // [PLACEHOLDER]
     whatsappNumber: "+91 9180208903", // [PLACEHOLDER] digits only, country code, no +/spaces
-    email: "", // [PLACEHOLDER]
+    email: "southcanararealestates26@gmail.com", // [PLACEHOLDER]
     address: {
-      line1: "",
-      line2: "",
+      line1: " ",
+      line2: " ",
       city: "Karkala",
       state: "Karnataka",
       pincode: "[574104]",
