@@ -2,10 +2,11 @@
 
 import { useState, useTransition, useRef } from "react";
 import Image from "next/image";
-import { Upload, Trash2, FileDown, AlertCircle } from "lucide-react";
+import { Upload, Trash2, FileDown, AlertCircle, Film } from "lucide-react";
 import {
   uploadPropertyImage,
-  deletePropertyImage,
+  uploadPropertyVideo,
+  deletePropertyMedia,
   uploadBrochure,
 } from "@/app/actions/properties";
 import type { PropertyImage } from "@/types";
@@ -42,16 +43,12 @@ function UploadSection({
         }
       }
       if (inputRef.current) inputRef.current.value = "";
-      // Optimistic-ish: rely on server revalidation on next navigation;
-      // for immediate feedback we re-read from the DOM isn't possible here,
-      // so we prompt a soft refresh via location reload of this section only
-      // is avoided — parent page revalidatePath handles it on next load.
     });
   }
 
   function handleDelete(imageId: string) {
     startTransition(async () => {
-      await deletePropertyImage(imageId, propertyId);
+      await deletePropertyMedia(imageId, propertyId);
       setLocalImages((prev) => prev.filter((img) => img.id !== imageId));
     });
   }
@@ -92,6 +89,93 @@ function UploadSection({
         </label>
       </div>
 
+      {error && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600">
+          <AlertCircle size={13} /> {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function VideoUploadSection({
+  videos,
+  propertyId,
+}: {
+  videos: PropertyImage[];
+  propertyId: string;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [localVideos, setLocalVideos] = useState(videos);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function handleUpload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setError(null);
+    startTransition(async () => {
+      for (let i = 0; i < files.length; i++) {
+        try {
+          await uploadPropertyVideo(propertyId, files[i], localVideos.length + i);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Upload failed.");
+        }
+      }
+      if (inputRef.current) inputRef.current.value = "";
+    });
+  }
+
+  function handleDelete(videoId: string) {
+    startTransition(async () => {
+      await deletePropertyMedia(videoId, propertyId);
+      setLocalVideos((prev) => prev.filter((v) => v.id !== videoId));
+    });
+  }
+
+  return (
+    <div>
+      <h3 className="font-medium text-navy">Property Videos</h3>
+      <p className="mt-1 text-xs text-stone-500">MP4, WEBM, or MOV. Max 200MB each.</p>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {localVideos.map((v) => (
+          <div key={v.id} className="group relative aspect-video overflow-hidden rounded-sm border border-stone-200 bg-stone-100">
+            <video src={v.video_url ?? undefined} className="h-full w-full object-cover" muted preload="metadata" />
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-navy-950/20">
+              <Film size={22} className="text-white" />
+            </div>
+            <button
+              type="button"
+              onClick={() => handleDelete(v.id)}
+              disabled={isPending}
+              className="absolute inset-0 flex items-center justify-center bg-navy-950/0 text-white opacity-0 transition-all group-hover:bg-navy-950/60 group-hover:opacity-100"
+              aria-label="Delete video"
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
+        ))}
+
+        <label className="flex aspect-video cursor-pointer flex-col items-center justify-center gap-1.5 rounded-sm border border-dashed border-stone-300 text-stone-400 hover:border-navy hover:text-navy">
+          <Upload size={18} />
+          <span className="text-xs">Upload video</span>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime"
+            multiple
+            className="sr-only"
+            onChange={(e) => handleUpload(e.target.files)}
+            disabled={isPending}
+          />
+        </label>
+      </div>
+
+      {isPending && (
+        <p className="mt-2 text-xs text-stone-500">
+          Uploading — large video files can take a little while on a slow connection.
+        </p>
+      )}
       {error && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600">
           <AlertCircle size={13} /> {error}
@@ -169,8 +253,9 @@ export default function MediaManager({
   images: PropertyImage[];
   brochureUrl: string | null;
 }) {
-  const photos = images.filter((img) => !img.is_floor_plan);
-  const floorPlans = images.filter((img) => img.is_floor_plan);
+  const photos = images.filter((img) => !img.is_floor_plan && img.media_type !== "video");
+  const floorPlans = images.filter((img) => img.is_floor_plan && img.media_type !== "video");
+  const videos = images.filter((img) => img.media_type === "video");
 
   return (
     <div className="space-y-8 rounded-sm border border-stone-200 bg-white p-6">
@@ -191,6 +276,7 @@ export default function MediaManager({
         propertyId={propertyId}
         isFloorPlan={true}
       />
+      <VideoUploadSection videos={videos} propertyId={propertyId} />
       <BrochureUpload propertyId={propertyId} brochureUrl={brochureUrl} />
     </div>
   );

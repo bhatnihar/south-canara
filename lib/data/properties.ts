@@ -3,7 +3,7 @@ import type { Property, PropertyWithRelations, Amenity, PropertyImage } from "@/
 
 const PROPERTY_WITH_RELATIONS_SELECT = `
   *,
-  property_images ( id, property_id, image_url, alt_text, display_order, is_floor_plan, created_at ),
+  property_images ( id, property_id, image_url, alt_text, display_order, is_floor_plan, media_type, video_url, created_at ),
   property_amenities ( amenities ( id, name, icon ) )
 `;
 
@@ -44,7 +44,10 @@ export async function getPublishedProperties(
   let query = supabase
     .from("properties")
     .select(PROPERTY_WITH_RELATIONS_SELECT)
-    .eq("published", true);
+    .eq("published", true)
+    // "Available Properties" excludes sold ones — they live on their own
+    // Sold Properties page (getSoldProperties) instead.
+    .neq("status", "sold_out");
 
   if (filters.search) {
     query = query.or(
@@ -77,6 +80,22 @@ export async function getPublishedProperties(
   return (data ?? []).map(normalizeRelations);
 }
 
+export async function getSoldProperties(): Promise<PropertyWithRelations[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("properties")
+    .select(PROPERTY_WITH_RELATIONS_SELECT)
+    .eq("published", true)
+    .eq("status", "sold_out")
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    console.error("getSoldProperties error:", error.message);
+    return [];
+  }
+  return (data ?? []).map(normalizeRelations);
+}
+
 export async function getFeaturedProperties(limit = 6): Promise<PropertyWithRelations[]> {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
@@ -84,6 +103,7 @@ export async function getFeaturedProperties(limit = 6): Promise<PropertyWithRela
     .select(PROPERTY_WITH_RELATIONS_SELECT)
     .eq("published", true)
     .eq("featured", true)
+    .neq("status", "sold_out")
     .order("created_at", { ascending: false })
     .limit(limit);
 

@@ -15,7 +15,7 @@ export default function PropertyGallery({
   propertyTitle: string;
   fallbackSeed: string;
 }) {
-  const photos = images.filter((img) => !img.is_floor_plan);
+  const photos = images.filter((img) => !img.is_floor_plan && img.media_type !== "video");
   const displayPhotos =
     photos.length > 0
       ? photos

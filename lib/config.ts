@@ -24,8 +24,8 @@ export const siteConfig = {
     whatsappNumber: "+91 9180208903", // [PLACEHOLDER] digits only, country code, no +/spaces
     email: "southcanararealestates26@gmail.com", // [PLACEHOLDER]
     address: {
-      line1: " ",
-      line2: " ",
+      line1: "  ",
+      line2: "  ",
       city: "Karkala",
       state: "Karnataka",
       pincode: "[574104]",

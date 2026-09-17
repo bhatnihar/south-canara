@@ -7,7 +7,33 @@ listings and leads.
 **Stack:** Next.js 14 (App Router, TypeScript) · Tailwind CSS · Supabase
 (Postgres, Auth, Storage) · Vercel
 
+## Update — Property Media (photos/videos) + Sold Properties
+
+Two features were added after initial launch, as a pure extension of the
+existing architecture (no redesign, no renamed columns/tables, no new
+auth system):
+
+- **Property videos:** `property_images` gained two additive columns
+  (`media_type`, `video_url`) — existing rows default to `media_type =
+  'image'` and keep working unchanged. Videos upload to a new
+  `property-videos` Storage bucket (max 200MB, MP4/WEBM/MOV) and play via
+  a native `<video controls>` element on the property detail page. Admin
+  media management gained a "Property Videos" upload block alongside the
+  existing photo/floor-plan sections.
+- **Sold Properties:** required *no* schema change — `property_status`
+  already included `'sold_out'`. `/properties` ("Available Properties")
+  now excludes sold listings by default; a new `/sold-properties` page
+  lists them using the same card design. Sold properties show "Sold" in
+  place of the price on both the card and detail page. The enquiry form
+  and CTAs on a sold property's page were deliberately left unchanged.
+- **`supabase/schema.sql` is fully idempotent** — every statement in it
+  (including the ones from this update) uses `IF NOT EXISTS` / `ON
+  CONFLICT` / duplicate-object guards. It's safe to re-run the *entire*
+  file on an existing production project any time; it only applies what's
+  new and skips everything already in place.
+
 ---
+
 
 ## 1. What's included
 

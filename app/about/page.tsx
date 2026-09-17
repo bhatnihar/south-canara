@@ -18,50 +18,58 @@ export default function AboutPage() {
         <div className="container-content max-w-2xl">
           <p className="mb-3 text-sm font-medium text-gold-700">About Us</p>
           <h1 className="font-display text-4xl text-navy">
-            [COMPANY TAGLINE / MISSION STATEMENT]
+            Your Trusted Partner in Real Estate. 🗺️
           </h1>
-          <p className="mt-5 leading-relaxed text-stone-600">
-            {/* [COMPANY DESCRIPTION] — Replace this with a real introduction:
-            when {siteConfig.name} was founded, who it&rsquo;s run by, and what
-            makes it different from other agencies operating in Dakshina
-            Kannada and Udupi. */}
-          </p>
+        <p className="mt-5 leading-relaxed text-stone-600">
+  South Canara Real Estate is committed to helping you find the right property
+  with honest guidance and local expertise. We make the process simple and
+  transparent, whether you're looking for a home, land, or an investment opportunity.
+        </p>
         </div>
       </div>
 
-      <div className="container-content py-16">
-        <div className="relative aspect-[21/9] w-full overflow-hidden rounded-sm">
-          <Image
-            src={placeholderImageUrl("sc-about-hero", 1400, 600)}
-            alt="South Canara coastline"
-            fill
-            sizes="100vw"
-            className="object-cover"
-          />
-        </div>
+     
+     <div className="container-content py-16">
+  <div className="relative aspect-[21/9] w-full overflow-hidden rounded-sm">
+    <Image
+      src={placeholderImageUrl("sc-about-hero", 1400, 600)}
+      alt="South Canara coastline"
+      fill
+      sizes="100vw"
+      style={{ objectFit: "contain" }}
+    />
+  </div>
+</div>
 
-        <div className="mt-16 grid grid-cols-1 gap-10 sm:grid-cols-3">
-          <div>
-            <h2 className="font-display text-xl text-navy">Our Mission</h2>
-            <p className="mt-3 text-sm leading-relaxed text-stone-600">
-              {/* [PLACEHOLDER] Describe the company&rsquo;s mission and values, and how it serves buyers and sellers in coastal Karnataka. */}
-            </p>
-          </div>
-          <div>
-            <h2 className="font-display text-xl text-navy">Our Approach</h2>
-            <p className="mt-3 text-sm leading-relaxed text-stone-600">
-              {/* [PLACEHOLDER] Describe how the company vets properties, */}
-              {/* works with buyers, and structures its service. */}
-            </p>
-          </div>
-          <div>
-            <h2 className="font-display text-xl text-navy">Our Team</h2>
-            <p className="mt-3 text-sm leading-relaxed text-stone-600">
-              {/* [PLACEHOLDER] Introduce founders or key team members once
-              bios and photos are available. */}
-            </p>
-          </div>
-        </div>
+
+<div className="mt-16 grid grid-cols-1 gap-10 sm:grid-cols-3">
+  <div>
+    <h2 className="font-display text-xl text-navy">Our Mission</h2>
+    <p className="mt-3 text-sm leading-relaxed text-stone-600">
+      Helping you find a place that feels like home. We make property search
+      simple, transparent, and personal — helping you find spaces that match
+      your needs and aspirations.
+    </p>
+  </div>
+
+  <div>
+    <h2 className="font-display text-xl text-navy">Our Approach</h2>
+    <p className="mt-3 text-sm leading-relaxed text-stone-600">
+      Local knowledge. Honest guidance. The right property. With a strong
+      understanding of the South Canara region, we focus on carefully selected
+      properties and straightforward communication.
+    </p>
+  </div>
+
+  <div>
+    <h2 className="font-display text-xl text-navy">Our Team</h2>
+    <p className="mt-3 text-sm leading-relaxed text-stone-600">
+      People who know the place. People who understand your needs. Our team
+      brings local insight and a personal approach to every property journey,
+      from the first conversation to the final decision.
+    </p>
+  </div>
+</div>
 
         <div className="mt-16 rounded-sm border border-stone-200 bg-ivory p-10 text-center">
           <h2 className="font-display text-2xl text-navy">
@@ -77,6 +85,6 @@ export default function AboutPage() {
           </div>
         </div>
       </div>
-    </div>
+    
   );
 }

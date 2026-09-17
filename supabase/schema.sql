@@ -330,3 +330,64 @@ create policy "admin delete brochures"
 -- 2. File size/type limits for uploads are enforced in the admin upload
 --    code (lib/validations) and can additionally be capped per-bucket in
 --    Supabase Dashboard > Storage > Bucket settings.
+
+-- =====================================================================
+-- MIGRATION 002 — Property Videos + Sold Properties support
+-- Added: property media type/video support, dedicated video storage bucket.
+-- Nothing here touches existing columns, tables, or policies — this whole
+-- file (including everything above this line) is safe to re-run in full;
+-- every statement is idempotent (IF NOT EXISTS / ON CONFLICT / duplicate_object
+-- guards), so re-running the entire schema.sql on your existing production
+-- project will apply only what's new and skip everything already in place.
+--
+-- Sold Properties required NO schema change at all — `property_status`
+-- already included 'sold_out' from the original schema. That feature is
+-- implemented entirely in application code (see the app repo's README/diff).
+-- =====================================================================
+
+-- Additive columns on the existing property_images table. Existing rows
+-- backfill to media_type = 'image' automatically via the default, so every
+-- property created before this migration keeps working unchanged.
+alter table property_images add column if not exists media_type text not null default 'image';
+alter table property_images add column if not exists video_url text;
+
+do $$ begin
+  alter table property_images
+    add constraint property_images_media_type_check check (media_type in ('image', 'video'));
+exception when duplicate_object then null; end $$;
+
+-- New dedicated bucket for property videos (kept separate from
+-- property-images so it can have its own size limit / content-type rules
+-- without touching the existing photo bucket's configuration).
+insert into storage.buckets (id, name, public)
+values ('property-videos', 'property-videos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "public read property-videos" on storage.objects;
+create policy "public read property-videos"
+  on storage.objects for select
+  to anon, authenticated
+  using (bucket_id = 'property-videos');
+
+drop policy if exists "admin write property-videos" on storage.objects;
+create policy "admin write property-videos"
+  on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'property-videos');
+
+drop policy if exists "admin update property-videos" on storage.objects;
+create policy "admin update property-videos"
+  on storage.objects for update
+  to authenticated
+  using (bucket_id = 'property-videos');
+
+drop policy if exists "admin delete property-videos" on storage.objects;
+create policy "admin delete property-videos"
+  on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'property-videos');
+
+-- No RLS policy changes were needed on property_images itself — the
+-- existing "public read images of published properties" / "admin full
+-- access property_images" policies apply to the whole row, so they cover
+-- the new media_type/video_url columns automatically.

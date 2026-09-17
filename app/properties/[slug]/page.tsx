@@ -31,7 +31,9 @@ export async function generateMetadata({
     property.price_display || formatPriceINR(property.price)
   }.`;
 
-  const coverImage = property.property_images.find((img) => !img.is_floor_plan)?.image_url;
+  const coverImage = property.property_images.find(
+    (img) => !img.is_floor_plan && img.media_type !== "video"
+  )?.image_url;
 
   return {
     title: property.title,
@@ -55,6 +57,8 @@ export default async function PropertyDetailPage({
   if (!property) notFound();
 
   const floorPlans = property.property_images.filter((img) => img.is_floor_plan);
+  const videos = property.property_images.filter((img) => img.media_type === "video");
+  const isSold = property.status === "sold_out";
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -112,9 +116,13 @@ export default async function PropertyDetailPage({
               <h1 className="font-display text-3xl text-navy sm:text-4xl">{property.title}</h1>
               <p className="mt-1.5 text-stone-600">{property.location}, {property.city}</p>
             </div>
-            <p className="font-display text-2xl text-navy sm:text-3xl">
-              {property.price_display || formatPriceINR(property.price)}
-            </p>
+            {isSold ? (
+              <p className="font-display text-2xl text-stone-500 sm:text-3xl">Sold</p>
+            ) : (
+              <p className="font-display text-2xl text-navy sm:text-3xl">
+                {property.price_display || formatPriceINR(property.price)}
+              </p>
+            )}
           </div>
 
           <div className="mt-8">
@@ -174,6 +182,27 @@ export default async function PropertyDetailPage({
                       className="object-contain p-2"
                     />
                   </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {videos.length > 0 && (
+            <div className="mt-10 border-t border-stone-200 pt-10">
+              <h2 className="font-display text-2xl text-navy">Property Video</h2>
+              <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {videos.map((video) => (
+                  <video
+                    key={video.id}
+                    src={video.video_url ?? undefined}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="aspect-video w-full rounded-sm border border-stone-200 bg-black"
+                  >
+                    Your browser does not support embedded video. You can view the file
+                    directly: <a href={video.video_url ?? "#"}>{video.video_url}</a>
+                  </video>
                 ))}
               </div>
             </div>

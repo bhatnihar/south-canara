@@ -26,6 +26,8 @@ export interface Amenity {
   icon: string; // lucide-react icon name, e.g. "Waves", "Dumbbell"
 }
 
+export type PropertyMediaType = "image" | "video";
+
 export interface PropertyImage {
   id: string;
   property_id: string;
@@ -33,6 +35,8 @@ export interface PropertyImage {
   alt_text: string | null;
   display_order: number;
   is_floor_plan: boolean;
+  media_type: PropertyMediaType;
+  video_url: string | null;
   created_at: string;
 }
 

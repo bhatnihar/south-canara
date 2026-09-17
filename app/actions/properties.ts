@@ -9,6 +9,8 @@ import {
   MAX_IMAGE_SIZE_BYTES,
   ALLOWED_BROCHURE_TYPES,
   MAX_BROCHURE_SIZE_BYTES,
+  ALLOWED_VIDEO_TYPES,
+  MAX_VIDEO_SIZE_BYTES,
 } from "@/lib/validations";
 
 export interface PropertyActionState {
@@ -184,6 +186,7 @@ export async function uploadPropertyImage(
     image_url: publicUrl,
     display_order: displayOrder,
     is_floor_plan: isFloorPlan,
+    media_type: "image",
   });
 
   if (insertError) {
@@ -193,9 +196,78 @@ export async function uploadPropertyImage(
   revalidatePath(`/admin/properties/${propertyId}`);
 }
 
-export async function deletePropertyImage(imageId: string, propertyId: string) {
+export async function uploadPropertyVideo(propertyId: string, file: File, displayOrder: number) {
   const supabase = await requireAdmin();
-  await supabase.from("property_images").delete().eq("id", imageId);
+
+  if (!ALLOWED_VIDEO_TYPES.includes(file.type)) {
+    throw new Error("Only MP4, WEBM, or MOV videos are allowed.");
+  }
+  if (file.size > MAX_VIDEO_SIZE_BYTES) {
+    throw new Error("Video must be smaller than 200MB.");
+  }
+
+  const extension = file.name.split(".").pop() ?? "mp4";
+  const path = `${propertyId}/${crypto.randomUUID()}.${extension}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("property-videos")
+    .upload(path, file, { contentType: file.type, upsert: false });
+
+  if (uploadError) {
+    throw new Error("Video upload failed. Please try again.");
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("property-videos").getPublicUrl(path);
+
+  const { error: insertError } = await supabase.from("property_images").insert({
+    property_id: propertyId,
+    image_url: "", // not used for video rows, but the column is NOT NULL
+    video_url: publicUrl,
+    display_order: displayOrder,
+    is_floor_plan: false,
+    media_type: "video",
+  });
+
+  if (insertError) {
+    throw new Error("Could not save video record.");
+  }
+
+  revalidatePath(`/admin/properties/${propertyId}`);
+}
+
+/** Extracts the storage object path from a Supabase public URL for a given bucket. */
+function storagePathFromPublicUrl(publicUrl: string, bucket: string): string | null {
+  const marker = `/storage/v1/object/public/${bucket}/`;
+  const index = publicUrl.indexOf(marker);
+  if (index === -1) return null;
+  return publicUrl.slice(index + marker.length);
+}
+
+export async function deletePropertyMedia(mediaId: string, propertyId: string) {
+  const supabase = await requireAdmin();
+
+  const { data: media } = await supabase
+    .from("property_images")
+    .select("media_type, image_url, video_url")
+    .eq("id", mediaId)
+    .single();
+
+  // Best-effort storage cleanup — if this fails (e.g. the object was
+  // already removed manually), we still proceed to delete the DB row
+  // rather than leaving an orphaned reference the admin can't get rid of.
+  if (media) {
+    if (media.media_type === "video" && media.video_url) {
+      const path = storagePathFromPublicUrl(media.video_url, "property-videos");
+      if (path) await supabase.storage.from("property-videos").remove([path]);
+    } else if (media.image_url) {
+      const path = storagePathFromPublicUrl(media.image_url, "property-images");
+      if (path) await supabase.storage.from("property-images").remove([path]);
+    }
+  }
+
+  await supabase.from("property_images").delete().eq("id", mediaId);
   revalidatePath(`/admin/properties/${propertyId}`);
 }
 

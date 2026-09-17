@@ -124,9 +124,11 @@ export default function PropertyFilters({ cities }: { cities: string[] }) {
                 onChange={(e) => updateParams({ status: e.target.value || null })}
               >
                 <option value="">Any Status</option>
-                {Object.entries(PROPERTY_STATUS_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
+                {Object.entries(PROPERTY_STATUS_LABELS)
+                  .filter(([value]) => value !== "sold_out")
+                  .map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
               </Select>
             </div>
 

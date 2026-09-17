@@ -56,3 +56,5 @@ export const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 export const ALLOWED_BROCHURE_TYPES = ["application/pdf"];
 export const MAX_BROCHURE_SIZE_BYTES = 15 * 1024 * 1024; // 15MB
+export const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+export const MAX_VIDEO_SIZE_BYTES = 200 * 1024 * 1024; // 200MB

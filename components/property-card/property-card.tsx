@@ -7,8 +7,11 @@ import { placeholderImageUrl } from "@/lib/placeholder";
 import type { PropertyWithRelations } from "@/types";
 
 export default function PropertyCard({ property }: { property: PropertyWithRelations }) {
-  const coverImage = property.property_images.find((img) => !img.is_floor_plan);
+  const coverImage = property.property_images.find(
+    (img) => !img.is_floor_plan && img.media_type !== "video"
+  );
   const imageUrl = coverImage?.image_url ?? placeholderImageUrl(property.slug, 640, 480);
+  const isSold = property.status === "sold_out";
 
   return (
     <Link
@@ -53,9 +56,13 @@ export default function PropertyCard({ property }: { property: PropertyWithRelat
         </div>
 
         <div className="mt-4 flex items-center justify-between border-t border-stone-100 pt-4">
-          <p className="font-display text-lg text-navy">
-            {property.price_display || formatPriceINR(property.price)}
-          </p>
+          {isSold ? (
+            <p className="font-display text-lg text-stone-500">Sold</p>
+          ) : (
+            <p className="font-display text-lg text-navy">
+              {property.price_display || formatPriceINR(property.price)}
+            </p>
+          )}
           <span className="text-sm font-medium text-gold-700 group-hover:underline">
             View Details
           </span>
