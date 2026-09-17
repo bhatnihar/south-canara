@@ -23,7 +23,7 @@ export default function AboutPage() {
         <p className="mt-5 leading-relaxed text-stone-600">
   South Canara Real Estate is committed to helping you find the right property
   with honest guidance and local expertise. We make the process simple and
-  transparent, whether you're looking for a home, land, or an investment opportunity.
+  transparent, whether you&apos;re looking for a home, land, or an investment opportunity.
         </p>
         </div>
       </div>
