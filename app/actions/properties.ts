@@ -56,6 +56,7 @@ function revalidatePropertyPaths(slug?: string) {
   revalidatePath("/properties");
   revalidatePath("/sold-properties");
   revalidatePath("/admin/properties");
+  revalidatePath("/admin/properties/sold");
   if (slug) revalidatePath(`/properties/${slug}`);
 }
 
@@ -136,6 +137,40 @@ export async function deleteProperty(propertyId: string) {
     throw new Error("Could not delete property.");
   }
   revalidatePropertyPaths();
+}
+
+export async function markPropertyAsSold(propertyId: string) {
+  const supabase = await requireAdmin();
+  const { data, error } = await supabase
+    .from("properties")
+    .update({ status: "sold_out", published: false })
+    .eq("id", propertyId)
+    .select("slug")
+    .single();
+
+  if (error || !data) {
+    console.error("markPropertyAsSold error:", error?.message ?? "Property was not found.");
+    throw new Error("Could not mark property as sold.");
+  }
+  revalidatePropertyPaths(data.slug);
+  revalidatePath(`/admin/properties/${propertyId}`);
+}
+
+export async function markPropertyAsAvailable(propertyId: string) {
+  const supabase = await requireAdmin();
+  const { data, error } = await supabase
+    .from("properties")
+    .update({ status: "ready_to_move" })
+    .eq("id", propertyId)
+    .select("slug")
+    .single();
+
+  if (error || !data) {
+    console.error("markPropertyAsAvailable error:", error?.message ?? "Property was not found.");
+    throw new Error("Could not restore property as available.");
+  }
+  revalidatePropertyPaths(data.slug);
+  revalidatePath(`/admin/properties/${propertyId}`);
 }
 
 export async function togglePublished(propertyId: string, published: boolean) {

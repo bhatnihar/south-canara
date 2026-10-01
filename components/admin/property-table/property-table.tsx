@@ -2,13 +2,18 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Pencil, Trash2, Eye, EyeOff, Star } from "lucide-react";
-import { deleteProperty, togglePublished } from "@/app/actions/properties";
+import { Pencil, Trash2, Eye, EyeOff, Star, Archive, RotateCcw } from "lucide-react";
+import { deleteProperty, togglePublished, markPropertyAsSold, markPropertyAsAvailable } from "@/app/actions/properties";
 import { StatusBadge } from "@/components/ui/badge";
 import { formatPriceINR } from "@/lib/utils";
 import type { Property } from "@/types";
 
-export default function PropertyTable({ properties }: { properties: Property[] }) {
+interface PropertyTableProps {
+  properties: Property[];
+  showSold?: boolean;
+}
+
+export default function PropertyTable({ properties, showSold = false }: PropertyTableProps) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -17,26 +22,60 @@ export default function PropertyTable({ properties }: { properties: Property[] }
   function handleTogglePublish(property: Property) {
     setPendingId(property.id);
     startTransition(async () => {
-      await togglePublished(property.id, !property.published);
-      setRows((prev) =>
-        prev.map((p) => (p.id === property.id ? { ...p, published: !p.published } : p))
-      );
+      try {
+        await togglePublished(property.id, !property.published);
+        setRows((prev) =>
+          prev.map((p) => (p.id === property.id ? { ...p, published: !p.published } : p))
+        );
+      } catch (err) {
+        console.error("Toggle publish error:", err);
+      }
+      setPendingId(null);
+    });
+  }
+
+  function handleMarkAsSold(propertyId: string) {
+    setPendingId(propertyId);
+    startTransition(async () => {
+      try {
+        await markPropertyAsSold(propertyId);
+        setRows((prev) => prev.filter((p) => p.id !== propertyId));
+      } catch (err) {
+        console.error("Mark as sold error:", err);
+      }
+      setPendingId(null);
+    });
+  }
+
+  function handleMarkAsAvailable(propertyId: string) {
+    setPendingId(propertyId);
+    startTransition(async () => {
+      try {
+        await markPropertyAsAvailable(propertyId);
+        setRows((prev) => prev.filter((p) => p.id !== propertyId));
+      } catch (err) {
+        console.error("Mark as available error:", err);
+      }
       setPendingId(null);
     });
   }
 
   function handleDelete(id: string) {
     startTransition(async () => {
-      await deleteProperty(id);
-      setRows((prev) => prev.filter((p) => p.id !== id));
-      setConfirmDeleteId(null);
+      try {
+        await deleteProperty(id);
+        setRows((prev) => prev.filter((p) => p.id !== id));
+        setConfirmDeleteId(null);
+      } catch (err) {
+        console.error("Delete error:", err);
+      }
     });
   }
 
   if (rows.length === 0) {
     return (
       <div className="rounded-sm border border-dashed border-stone-300 p-12 text-center text-sm text-stone-500">
-        No properties yet. Add your first property to get started.
+        {showSold ? "No sold properties yet." : "No available properties yet. Add your first property to get started."}
       </div>
     );
   }
@@ -50,7 +89,7 @@ export default function PropertyTable({ properties }: { properties: Property[] }
             <th className="px-4 py-3 font-medium">City</th>
             <th className="px-4 py-3 font-medium">Price</th>
             <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3 font-medium">Published</th>
+            {!showSold && <th className="px-4 py-3 font-medium">Published</th>}
             <th className="px-4 py-3 font-medium text-right">Actions</th>
           </tr>
         </thead>
@@ -71,30 +110,56 @@ export default function PropertyTable({ properties }: { properties: Property[] }
                 {property.price_display || formatPriceINR(property.price)}
               </td>
               <td className="px-4 py-3"><StatusBadge status={property.status} /></td>
-              <td className="px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => handleTogglePublish(property)}
-                  disabled={isPending && pendingId === property.id}
-                  className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
-                    property.published
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-stone-100 text-stone-600"
-                  }`}
-                >
-                  {property.published ? <Eye size={13} /> : <EyeOff size={13} />}
-                  {property.published ? "Published" : "Draft"}
-                </button>
-              </td>
+              {!showSold && (
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => handleTogglePublish(property)}
+                    disabled={isPending && pendingId === property.id}
+                    className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
+                      property.published
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-stone-100 text-stone-600"
+                    }`}
+                  >
+                    {property.published ? <Eye size={13} /> : <EyeOff size={13} />}
+                    {property.published ? "Published" : "Draft"}
+                  </button>
+                </td>
+              )}
               <td className="px-4 py-3">
                 <div className="flex items-center justify-end gap-1">
                   <Link
                     href={`/admin/properties/${property.id}`}
                     className="rounded-sm p-2 text-navy-600 hover:bg-navy-50"
                     aria-label={`Edit ${property.title}`}
+                    title="Edit"
                   >
                     <Pencil size={15} />
                   </Link>
+                  {showSold ? (
+                    <button
+                      type="button"
+                      onClick={() => handleMarkAsAvailable(property.id)}
+                      disabled={isPending && pendingId === property.id}
+                      className="rounded-sm p-2 text-blue-500 hover:bg-blue-50"
+                      aria-label={`Restore ${property.title} to available`}
+                      title="Restore to Available"
+                    >
+                      <RotateCcw size={15} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleMarkAsSold(property.id)}
+                      disabled={isPending && pendingId === property.id}
+                      className="rounded-sm p-2 text-amber-600 hover:bg-amber-50"
+                      aria-label={`Mark ${property.title} as sold`}
+                      title="Mark as Sold"
+                    >
+                      <Archive size={15} />
+                    </button>
+                  )}
                   {confirmDeleteId === property.id ? (
                     <div className="flex items-center gap-1.5">
                       <button
@@ -118,6 +183,7 @@ export default function PropertyTable({ properties }: { properties: Property[] }
                       onClick={() => setConfirmDeleteId(property.id)}
                       className="rounded-sm p-2 text-red-500 hover:bg-red-50"
                       aria-label={`Delete ${property.title}`}
+                      title="Delete"
                     >
                       <Trash2 size={15} />
                     </button>

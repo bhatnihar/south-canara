@@ -45,8 +45,6 @@ export async function getPublishedProperties(
     .from("properties")
     .select(PROPERTY_WITH_RELATIONS_SELECT)
     .eq("published", true)
-    // "Available Properties" excludes sold ones — they live on their own
-    // Sold Properties page (getSoldProperties) instead.
     .neq("status", "sold_out");
 
   if (filters.search) {
@@ -137,9 +135,7 @@ export async function getAllAmenities(): Promise<Amenity[]> {
   return data ?? [];
 }
 
-// ---------------------------------------------------------------------
 // Admin-facing reads (RLS still applies — caller must be authenticated)
-// ---------------------------------------------------------------------
 
 export async function getAllPropertiesAdmin(): Promise<Property[]> {
   const supabase = createServerSupabaseClient();
@@ -150,6 +146,21 @@ export async function getAllPropertiesAdmin(): Promise<Property[]> {
 
   if (error) {
     console.error("getAllPropertiesAdmin error:", error.message);
+    return [];
+  }
+  return data ?? [];
+}
+
+export async function getSoldPropertiesAdmin(): Promise<Property[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("properties")
+    .select("*")
+    .eq("status", "sold_out")
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    console.error("getSoldPropertiesAdmin error:", error.message);
     return [];
   }
   return data ?? [];
