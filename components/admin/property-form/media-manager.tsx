@@ -118,19 +118,30 @@ function VideoUploadSection({ videos, propertyId }: { videos: PropertyImage[]; p
 function BrochureUpload({ propertyId, brochureUrl }: { propertyId: string; brochureUrl: string | null }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   function handleUpload(files: FileList | null) {
     const file = files?.[0];
     if (!file) return;
     setError(null);
     startTransition(async () => {
-      try { await uploadBrochure(propertyId, file); } catch (err) { setError(err instanceof Error ? err.message : "Upload failed."); }
+      try {
+        const formData = new FormData();
+        formData.append("propertyId", propertyId);
+        formData.append("file", file);
+        await uploadBrochure(formData);
+        inputRef.current && (inputRef.current.value = "");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Upload failed.");
+      }
     });
   }
+
   return <div>
     <h3 className="font-medium text-navy">Brochure (PDF)</h3>
     <div className="mt-3 flex flex-wrap items-center gap-3">
       {brochureUrl && <a href={brochureUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-sm border border-stone-200 px-3 py-2 text-sm text-navy hover:bg-stone-50"><FileDown size={15} /> Current brochure</a>}
-      <label><span className="inline-block cursor-pointer rounded-sm border border-stone-300 px-3.5 py-2 text-sm font-medium text-navy hover:bg-stone-50">{isPending ? "Uploading..." : brochureUrl ? "Replace Brochure" : "Upload Brochure"}</span><input type="file" accept="application/pdf" className="sr-only" onChange={(e) => handleUpload(e.target.files)} disabled={isPending} /></label>
+      <label><span className="inline-block cursor-pointer rounded-sm border border-stone-300 px-3.5 py-2 text-sm font-medium text-navy hover:bg-stone-50">{isPending ? "Uploading..." : brochureUrl ? "Replace Brochure" : "Upload Brochure"}</span><input ref={inputRef} type="file" accept="application/pdf" className="sr-only" onChange={(e) => handleUpload(e.target.files)} disabled={isPending} /></label>
     </div>
     {error && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} /> {error}</p>}
   </div>;

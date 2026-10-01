@@ -246,16 +246,23 @@ export async function deletePropertyMedia(mediaId: string, propertyId: string) {
   revalidatePath(`/admin/properties/${propertyId}`);
 }
 
-export async function uploadBrochure(propertyId: string, file: File) {
+export async function uploadBrochure(formData: FormData) {
+  const propertyId = String(formData.get("propertyId") ?? "");
+  const file = getFormFile(formData, "file");
   const supabase = await requireAdmin();
+
+  if (!propertyId) throw new Error("Property is required.");
   if (!ALLOWED_BROCHURE_TYPES.includes(file.type)) throw new Error("Brochure must be a PDF.");
   if (file.size > MAX_BROCHURE_SIZE_BYTES) throw new Error("Brochure must be smaller than 15MB.");
+
   const path = `${propertyId}/brochure.pdf`;
   const { error: uploadError } = await supabase.storage.from("brochures").upload(path, file, { contentType: file.type, upsert: true });
   if (uploadError) throw new Error("Brochure upload failed. Please try again.");
+
   const { data: publicData } = supabase.storage.from("brochures").getPublicUrl(path);
   const { error } = await supabase.from("properties").update({ brochure_url: publicData.publicUrl }).eq("id", propertyId);
   if (error) throw new Error("Could not save brochure.");
+
   revalidatePropertyPaths();
   revalidatePath(`/admin/properties/${propertyId}`);
 }
