@@ -1,204 +1,638 @@
-# South Canara Real Estate — Website & Admin Platform
+# 🏡 South Canara Real Estate
 
-A production-quality real estate website: public marketing site + property
-catalog + enquiry system, and a protected admin dashboard for managing
-listings and leads.
+### Coastal Roots, Lasting Homes.
 
-**Stack:** Next.js 14 (App Router, TypeScript) · Tailwind CSS · Supabase
-(Postgres, Auth, Storage) · Vercel
+A modern, full-stack real estate platform built for showcasing and managing properties across South Canara. The platform provides a public-facing property marketplace along with a secure admin dashboard for managing property listings, media, publication status, and enquiries.
 
-## Update — Property Media (photos/videos) + Sold Properties
-
-Two features were added after initial launch, as a pure extension of the
-existing architecture (no redesign, no renamed columns/tables, no new
-auth system):
-
-- **Property videos:** `property_images` gained two additive columns
-  (`media_type`, `video_url`) — existing rows default to `media_type =
-  'image'` and keep working unchanged. Videos upload to a new
-  `property-videos` Storage bucket (max 200MB, MP4/WEBM/MOV) and play via
-  a native `<video controls>` element on the property detail page. Admin
-  media management gained a "Property Videos" upload block alongside the
-  existing photo/floor-plan sections.
-- **Sold Properties:** required *no* schema change — `property_status`
-  already included `'sold_out'`. `/properties` ("Available Properties")
-  now excludes sold listings by default; a new `/sold-properties` page
-  lists them using the same card design. Sold properties show "Sold" in
-  place of the price on both the card and detail page. The enquiry form
-  and CTAs on a sold property's page were deliberately left unchanged.
-- **`supabase/schema.sql` is fully idempotent** — every statement in it
-  (including the ones from this update) uses `IF NOT EXISTS` / `ON
-  CONFLICT` / duplicate-object guards. It's safe to re-run the *entire*
-  file on an existing production project any time; it only applies what's
-  new and skips everything already in place.
+**Live Website:** https://south-canara.vercel.app/
 
 ---
 
+## 📌 Overview
 
-## 1. What's included
+South Canara Real Estate is a production-ready real estate website designed to provide a clean and intuitive experience for property buyers while giving administrators a centralized system to manage listings.
 
-```
-app/                   Pages (App Router) — public site + /admin
-  actions/             Server Actions (enquiries, auth, properties, leads)
-  properties/          /properties and /properties/[slug]
-  about/, contact/      Static-ish marketing pages
-  admin/
-    login/             Public login page (not behind the admin layout)
-    (dashboard)/        Everything else under /admin — protected + sidebar
-      properties/       List, /new, /[id] (edit + media)
-      leads/            Lead inbox with status updates
-components/            Reusable UI, grouped by feature (see folder names)
-lib/
-  supabase/            Browser / server / service-role Supabase clients
-  data/                Read-only data access functions (properties, leads)
-  config.ts            ALL company info (phone, email, WhatsApp, address...)
-  validations.ts       Zod schemas shared by client + server
-  utils.ts             formatPriceINR, formatArea, slugify, cn
-supabase/
-  schema.sql           Full schema + RLS policies + storage buckets — run this once
-types/index.ts         Shared TypeScript types
-middleware.ts          Protects /admin/*, refreshes the auth session
-```
+The application supports:
 
-**Nothing is hardcoded.** Properties, images, amenities, and leads all come
-from Supabase. Company contact details live in one file: `lib/config.ts`.
+- 🏠 Property listings and detailed property pages
+- 🔎 Property discovery and browsing
+- 📸 Multiple property images
+- 🎥 Property video uploads
+- 📐 Floor-plan uploads
+- 📄 Brochure uploads
+- 🟢 Property publication management
+- 🔴 Sold-property management
+- 🔄 Restore sold properties
+- 📩 Customer enquiries
+- 🔐 Secure admin authentication
+- 📊 Admin property management dashboard
+- 📱 Responsive mobile-friendly UI
+- 🚀 Production deployment with Vercel
 
 ---
-   
-## 2. Local setup (for the developer)
+
+## ✨ Features
+
+### 🌐 Public Website
+
+#### Homepage
+
+The homepage introduces the South Canara Real Estate brand and highlights available properties with a modern, responsive design.
+
+#### Property Listings
+
+Users can browse available properties and access individual property detail pages.
+
+Each property can include:
+
+- Property title
+- Location
+- Price
+- Property type
+- Bedrooms
+- Bathrooms
+- Area
+- Description
+- Images
+- Floor plans
+- Videos
+- Brochure
+- Availability status
+
+#### Property Detail Pages
+
+Every published property has its own dynamic page containing detailed information and media.
+
+Example route:
+
+```text
+/properties/[slug]
+```
+
+#### Sold Properties
+
+Sold properties are handled separately from available properties.
+
+Once a property is marked as sold:
+
+- It is removed from the publicly available listings
+- Its status is changed to `sold_out`
+- Its data is retained
+- Administrators can restore it later
+
+Public sold-property route:
+
+```text
+/sold-properties
+```
+
+---
+
+## 🔐 Admin Dashboard
+
+The application includes a dedicated administration area.
+
+### Admin Authentication
+
+Administrators can securely sign in through:
+
+```text
+/admin/login
+```
+
+Authentication and user management are handled through Supabase.
+
+### Property Management
+
+Administrators can:
+
+- Create new properties
+- Edit existing properties
+- Publish properties
+- Unpublish properties
+- Mark properties as sold
+- Restore sold properties
+- Manage property information
+- Upload property media
+- Delete uploaded media
+
+### Property Status Management
+
+Properties use explicit status values instead of deleting sold listings.
+
+The application distinguishes between:
+
+```text
+Available / Published
+        ↓
+      Sold
+        ↓
+   sold_out
+```
+
+A sold property can subsequently be restored to an available state.
+
+This preserves historical property data while keeping the public listings accurate.
+
+---
+
+## 📸 Media Management
+
+The property management system supports multiple types of property media.
+
+### Property Images
+
+Administrators can upload multiple images for each property.
+
+### Floor Plans
+
+Floor plans are stored separately from normal property images and can be displayed independently.
+
+### Property Videos
+
+Property videos can be uploaded and associated with individual listings.
+
+### Brochures
+
+PDF brochures can be uploaded for properties and accessed directly from property detail pages.
+
+All media operations use `FormData` for reliable file handling.
+
+---
+
+## 📩 Enquiries
+
+Visitors can submit enquiries through the website.
+
+The system captures customer enquiry information so administrators can manage potential leads through the admin interface.
+
+Admin route:
+
+```text
+/admin/leads
+```
+
+---
+
+## 🛠️ Technology Stack
+
+### Frontend
+
+- **Next.js 14**
+- **React**
+- **TypeScript**
+- **Tailwind CSS**
+- **Lucide React**
+
+### Backend
+
+- **Next.js Server Actions**
+- **Supabase**
+- **PostgreSQL**
+
+### Authentication
+
+- **Supabase Authentication**
+
+### Deployment
+
+- **Vercel**
+- **GitHub**
+
+### Development Tools
+
+- Git
+- GitHub
+- npm
+- VS Code
+
+---
+
+## 🏗️ Architecture
+
+The project follows a modern Next.js App Router architecture.
+
+```text
+                         ┌─────────────────────┐
+                         │      Visitors       │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │   Next.js Frontend  │
+                         │   React + TypeScript│
+                         └──────────┬──────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                    │                               │
+                    ▼                               ▼
+          ┌──────────────────┐           ┌──────────────────┐
+          │ Public Website   │           │  Admin Dashboard │
+          │                  │           │                  │
+          │ Properties       │           │ Properties       │
+          │ Property Details │           │ Leads            │
+          │ Enquiries        │           │ Media Management │
+          └────────┬─────────┘           └────────┬─────────┘
+                   │                              │
+                   └──────────────┬───────────────┘
+                                  ▼
+                         ┌──────────────────┐
+                         │ Server Actions   │
+                         │ Next.js Backend  │
+                         └────────┬─────────┘
+                                  │
+                                  ▼
+                         ┌──────────────────┐
+                         │    Supabase      │
+                         │                  │
+                         │ PostgreSQL       │
+                         │ Authentication   │
+                         │ Storage          │
+                         └──────────────────┘
+```
+
+---
+
+## 📁 Project Structure
+
+```text
+south-canara/
+│
+├── app/
+│   ├── admin/
+│   │   ├── leads/
+│   │   ├── login/
+│   │   └── properties/
+│   │
+│   ├── properties/
+│   │   └── [slug]/
+│   │
+│   ├── sold-properties/
+│   │
+│   ├── about/
+│   ├── contact/
+│   ├── privacy-policy/
+│   ├── terms/
+│   │
+│   └── actions/
+│       └── properties.ts
+│
+├── components/
+│   ├── admin/
+│   │   └── property-form/
+│   │       └── media-manager.tsx
+│   │
+│   └── ...
+│
+├── lib/
+│   ├── data/
+│   │   └── properties.ts
+│   └── supabase/
+│
+├── types/
+│
+├── public/
+│
+├── .env.local
+├── next.config.js
+├── package.json
+├── tailwind.config.ts
+└── tsconfig.json
+```
+
+---
+
+## ⚙️ Getting Started
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/bhatnihar/south-canara.git
+```
+
+Navigate into the project:
+
+```bash
+cd south-canara
+```
+
+### 2. Install dependencies
 
 ```bash
 npm install
-cp .env.example .env.local   # fill in the Supabase values — see Section 3
+```
+
+### 3. Configure environment variables
+
+Create:
+
+```text
+.env.local
+```
+
+Add the required Supabase configuration:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+> Never commit `.env.local` or expose private credentials in the repository.
+
+### 4. Start the development server
+
+```bash
 npm run dev
 ```
 
-## 3. Set up Supabase (one-time)
+The application will be available at:
 
-1. Create a project at [supabase.com](https://supabase.com).
-2. Go to **SQL Editor** → paste the entire contents of `supabase/schema.sql`
-   → **Run**. This creates every table, RLS policy, trigger, seed amenity,
-   and the two storage buckets (`property-images`, `brochures`).
-3. Go to **Project Settings → API** and copy:
-   - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` (**keep this secret**)
-4. Create the first admin login: **Authentication → Users → Add User**.
-   Set an email + password directly (no public sign-up exists in this app
-   by design — admin accounts are provisioned manually). Use this to sign
-   in at `/admin/login`.
-
-That's the entire backend. There is no separate server to deploy.
-
-## 4. Environment variables
-
-See `.env.example`. Four variables total, three required:
-
-| Variable | Required | Notes |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | From Supabase API settings |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Public — safe in the browser, RLS protects data |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | **Secret** — server-only, never prefix with `NEXT_PUBLIC_` |
-| `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_API_KEY` | No | Without it, map sections show an "Open in Google Maps" link instead of an embed |
-
----
-
-## 5. Before you go live — replace every placeholder
-
-Search the codebase for these markers and replace them with real content:
-
-- **`lib/config.ts`** — phone, WhatsApp number, email, office address,
-  social links, `url` (production domain), and the three location blurbs.
-- **`[PLACEHOLDER]` / `[COMPANY ...]` text** in `app/about/page.tsx`,
-  `app/privacy-policy/page.tsx`, `app/terms/page.tsx` — real company
-  description, mission, team bios, and actual legal policy text (have
-  privacy policy and terms reviewed by a professional — the site collects
-  personal data via the enquiry form, which is regulated under India's
-  Digital Personal Data Protection Act, 2023).
-- **Testimonials** in `components/testimonials/testimonials.tsx` — replace
-  the three placeholder quotes with real, permissioned customer quotes, or
-  wire this to a database table if you want it admin-editable later.
-- **Placeholder photography** — every property/hero/about image currently
-  falls back to `picsum.photos` (a stock placeholder service) via
-  `lib/placeholder.ts`, used *only* when no real image has been uploaded.
-  Uploading real photos through the admin dashboard for each property
-  automatically replaces these — no code change needed.
-- **Logo** — `public/images/logo.jpg` is the file you uploaded. Swap it
-  for a higher-resolution export if you have one.
-
----
-
-## 6. Deploying — step by step
-
-### Step 1: Push to GitHub
-```bash
-git init
-git add .
-git commit -m "Initial commit — South Canara Real Estate"
-git branch -M main
-git remote add origin https://github.com/<your-org>/south-canara.git
-git push -u origin main
+```text
+http://localhost:3000
 ```
 
-### Step 2: Deploy to Vercel
-1. Go to [vercel.com/new](https://vercel.com/new) and import the GitHub repo.
-2. Framework preset: **Next.js** (auto-detected).
-3. Under **Environment Variables**, add the three required Supabase
-   variables from Section 4 (and the Maps key if you have one).
-4. Click **Deploy**. Vercel builds and gives you a `*.vercel.app` URL.
-
-### Step 3: Connect the client's domain
-1. In the Vercel project → **Settings → Domains**, add the company's
-   domain (e.g. `southcanararealestate.com`).
-2. Vercel shows the DNS records to add. Add them at the domain registrar
-   (an `A`/`ALIAS` record for the root domain, a `CNAME` for `www`).
-3. Update `lib/config.ts` → `url` to the final domain, and redeploy
-   (Vercel auto-redeploys on every push to `main`).
-
-### Step 4: Verify production
-- [ ] Homepage, `/properties`, and a property detail page load correctly
-- [ ] Submit a test enquiry — confirm it appears under **Admin → Leads**
-- [ ] Sign in at `/admin/login`, publish a test property, confirm it
-      appears on `/properties`, then unpublish/delete it
-- [ ] Upload a real photo, floor plan, and brochure to one property
-- [ ] Check the site on an actual phone — nav menu, sticky CTA bar, and
-      property gallery
-- [ ] Visit `/sitemap.xml` and `/robots.txt` to confirm they resolve
-- [ ] Submit [Google Search Console](https://search.google.com/search-console)
-      with the sitemap URL for SEO indexing
+If port 3000 is already in use, Next.js may start on another available port.
 
 ---
 
-## 7. Handing this over to the real-estate company
+## 🧪 Production Build
 
-Give the client:
-1. **The live URL** and **an admin login** (create a fresh one for them
-   under Supabase → Authentication rather than sharing your own).
-2. A two-line explanation: *"To add a new property, go to
-   yoursite.com/admin, log in, click Add Property, fill in the details,
-   upload photos, then check Published. It appears on the site
-   immediately — no developer needed."*
-3. Access to the Supabase and Vercel projects if they want ownership
-   (both support transferring project/organization ownership from
-   their respective dashboards).
+Before deploying, verify that the production build succeeds:
 
-## 8. Extending later (Phase 2 / 3 — not built yet, by design)
+```bash
+npm run build
+```
 
-The schema and architecture were kept flexible on purpose. Natural next
-additions, roughly in order of value:
-- Email or WhatsApp notification to staff when a new lead comes in
-  (Supabase has a `pg_net`/webhook option, or a scheduled Edge Function)
-- A `testimonials` table so testimonials become admin-editable
-- A `locations` table (currently a static array in `lib/config.ts`)
-- Blog / SEO content section
-- Saved properties, property comparison, EMI calculator (all called out
-  explicitly in the original spec as *not* V1 — build only if requested)
+Start the production server with:
 
-## 9. A note on the Next.js version
+```bash
+npm start
+```
 
-This project pins **Next.js 14.2.35** (the latest patched release on the
-14.x line) rather than the newest major version, to keep the App Router
-API surface stable for this build. `npm audit` may still flag advisories
-whose fixes require the newest major version — that's expected and safe
-to leave as-is for now, but worth revisiting a Next.js major-version
-upgrade during a future maintenance pass.
+A successful build should complete:
+
+```text
+✓ Compiled successfully
+✓ Linting and checking validity of types
+✓ Collecting page data
+✓ Generating static pages
+✓ Collecting build traces
+✓ Finalizing page optimization
+```
+
+---
+
+## 🚀 Deployment
+
+The project is deployed using Vercel.
+
+### Deployment Flow
+
+```text
+Local Development
+       │
+       ▼
+     Git
+       │
+       ▼
+    GitHub
+       │
+       ▼
+    Vercel
+       │
+       ▼
+ Production Website
+```
+
+The `main` branch is connected to the production deployment.
+
+Live website:
+
+https://south-canara.vercel.app/
+
+---
+
+## 🔒 Security Considerations
+
+The project uses Supabase for authentication, database access, and storage.
+
+Important practices include:
+
+- Environment variables are used for Supabase configuration
+- Sensitive credentials are not committed to Git
+- Admin functionality is separated from public functionality
+- Database access is controlled through Supabase policies
+- Authentication is required for administrative operations
+- Property media operations are handled through server-side actions
+
+---
+
+## 📊 Property Lifecycle
+
+Properties follow a controlled lifecycle:
+
+```text
+                ┌───────────────┐
+                │  New Property │
+                └───────┬───────┘
+                        │
+                        ▼
+                ┌───────────────┐
+                │    Draft      │
+                └───────┬───────┘
+                        │
+                     Publish
+                        │
+                        ▼
+                ┌───────────────┐
+                │   Available   │
+                └───────┬───────┘
+                        │
+                    Mark Sold
+                        │
+                        ▼
+                ┌───────────────┐
+                │   sold_out    │
+                └───────┬───────┘
+                        │
+                     Restore
+                        │
+                        ▼
+                ┌───────────────┐
+                │   Available   │
+                └───────────────┘
+```
+
+Sold properties are **not deleted**. Their records are retained and can be restored by an administrator.
+
+---
+
+## 📱 Responsive Design
+
+The website is designed to work across:
+
+- Desktop
+- Laptop
+- Tablet
+- Mobile devices
+
+The UI adapts to different screen sizes while maintaining usability across public pages and administrative interfaces.
+
+---
+
+## 🗺️ Available Routes
+
+### Public
+
+| Route | Purpose |
+|---|---|
+| `/` | Homepage |
+| `/properties` | Property listings |
+| `/properties/[slug]` | Property details |
+| `/sold-properties` | Sold properties |
+| `/about` | About the company |
+| `/contact` | Contact and enquiries |
+| `/privacy-policy` | Privacy policy |
+| `/terms` | Terms and conditions |
+| `/robots.txt` | Search engine crawler rules |
+| `/sitemap.xml` | Website sitemap |
+
+### Admin
+
+| Route | Purpose |
+|---|---|
+| `/admin/login` | Admin authentication |
+| `/admin` | Admin dashboard |
+| `/admin/properties` | Property management |
+| `/admin/properties/new` | Add new property |
+| `/admin/properties/[id]` | Edit property |
+| `/admin/leads` | Manage enquiries |
+
+---
+
+## 🧠 Key Technical Highlights
+
+### Next.js App Router
+
+The application uses the Next.js App Router for:
+
+- File-based routing
+- Dynamic property pages
+- Server-side rendering
+- Server actions
+- Static generation where appropriate
+- Middleware
+
+### TypeScript
+
+TypeScript provides type safety across:
+
+- Property data
+- Media objects
+- Server actions
+- UI components
+- Database interactions
+
+### Supabase
+
+Supabase provides:
+
+- PostgreSQL database
+- Authentication
+- Storage
+- Backend infrastructure
+
+### Server Actions
+
+Property-related operations are handled through Next.js server actions, including:
+
+- Creating properties
+- Updating properties
+- Publishing/unpublishing
+- Marking properties as sold
+- Restoring properties
+- Uploading media
+- Deleting media
+
+---
+
+## 🧩 Challenges Solved
+
+During development, several real-world engineering problems were addressed, including:
+
+- Supabase authentication configuration
+- Database and storage integration
+- Property media uploads
+- Image and video handling
+- PDF brochure uploads
+- Property publication state management
+- Sold-property lifecycle management
+- Git merge conflicts
+- Production build failures
+- ESLint validation issues
+- Vercel deployment configuration
+- Environment variable configuration
+- Responsive UI behavior
+
+The project demonstrates the process of taking a full-stack application from local development through Git-based version control to production deployment.
+
+---
+
+## 📈 Future Improvements
+
+Potential future enhancements include:
+
+- Advanced property search and filtering
+- Location-based property search
+- Google Maps integration
+- Property comparison
+- Favorites / saved properties
+- WhatsApp enquiry integration
+- Email notifications for new enquiries
+- Analytics dashboard
+- SEO improvements for individual properties
+- Image optimization and CDN enhancements
+- Role-based admin permissions
+- Property availability notifications
+
+---
+
+## 👨‍💻 Developer
+
+**Nihar Bhat**
+
+GitHub:  
+https://github.com/bhatnihar
+
+Project Repository:  
+https://github.com/bhatnihar/south-canara
+
+---
+
+## 📄 License
+
+This project was developed as a real estate web application for South Canara Real Estate.
+
+Unless otherwise specified, the source code and associated assets should not be reused commercially without permission.
+
+---
+
+## ⭐ Project Status
+
+**Status: Completed & Deployed 🚀**
+
+The application has been successfully built, tested, committed to GitHub, and deployed to Vercel.
+
+### Production
+
+🌐 **https://south-canara.vercel.app/**
+
+### Repository
+
+💻 **https://github.com/bhatnihar/south-canara**
+
+---
+
+<p align="center">
+  Built with Next.js, TypeScript, Supabase & ❤️
+</p>
