@@ -28,7 +28,7 @@ function UploadSection({ title, helperText, accept, images, propertyId, isFloorP
           setError(err instanceof Error ? err.message : "Upload failed.");
         }
       }
-      inputRef.current && (inputRef.current.value = "");
+      if (inputRef.current) inputRef.current.value = "";
     });
   }
 
@@ -81,7 +81,7 @@ function VideoUploadSection({ videos, propertyId }: { videos: PropertyImage[]; p
           setError(err instanceof Error ? err.message : "Upload failed.");
         }
       }
-      inputRef.current && (inputRef.current.value = "");
+      if (inputRef.current) inputRef.current.value = "";
     });
   }
 
@@ -130,7 +130,7 @@ function BrochureUpload({ propertyId, brochureUrl }: { propertyId: string; broch
         formData.append("propertyId", propertyId);
         formData.append("file", file);
         await uploadBrochure(formData);
-        inputRef.current && (inputRef.current.value = "");
+        if (inputRef.current) inputRef.current.value = "";
       } catch (err) {
         setError(err instanceof Error ? err.message : "Upload failed.");
       }
