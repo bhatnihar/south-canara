@@ -4,7 +4,13 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Upload, Trash2, FileDown, AlertCircle, Film } from "lucide-react";
-import { uploadPropertyImage, deletePropertyMedia, uploadBrochure } from "@/app/actions/properties";
+import {
+  createPropertyVideoUpload,
+  deletePropertyMedia,
+  savePropertyVideoRecord,
+  uploadBrochure,
+  uploadPropertyImage,
+} from "@/app/actions/properties";
 import { createClient } from "@/lib/supabase/client";
 import { ALLOWED_VIDEO_TYPES, MAX_VIDEO_SIZE_BYTES } from "@/lib/validations";
 import type { PropertyImage } from "@/types";
@@ -59,7 +65,7 @@ function UploadSection({ title, helperText, accept, images, propertyId, isFloorP
         <input ref={inputRef} type="file" accept={accept} multiple className="sr-only" onChange={(e) => handleUpload(e.target.files)} disabled={isPending} />
       </label>
     </div>
-    {error && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} /> {error}</p>}
+    {error && <p role="alert" className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} /> {error}</p>}
   </div>;
 }
 
@@ -73,14 +79,13 @@ function VideoUploadSection({ videos, propertyId }: { videos: PropertyImage[]; p
 
   async function handleUpload(files: FileList | null) {
     if (!files?.length || isUploading) return;
+    const selectedFiles = Array.from(files);
     setError(null);
     setIsUploading(true);
-
-    const supabase = createClient();
-    const selectedFiles = Array.from(files);
-    let uploadedCount = 0;
+    let completed = 0;
 
     try {
+      const supabase = createClient();
       for (const file of selectedFiles) {
         if (!ALLOWED_VIDEO_TYPES.includes(file.type)) {
           throw new Error(`${file.name}: Choose an MP4, WEBM, or MOV video.`);
@@ -89,48 +94,25 @@ function VideoUploadSection({ videos, propertyId }: { videos: PropertyImage[]; p
           throw new Error(`${file.name}: Video must be larger than 0 and no bigger than 200MB.`);
         }
 
-        // Upload straight from the browser to Supabase Storage. This avoids
-        // sending large video bodies through the Next.js/Vercel server action.
-        const extensionByType: Record<string, string> = {
-          "video/mp4": "mp4",
-          "video/webm": "webm",
-          "video/quicktime": "mov",
-        };
-        const path = `${propertyId}/${crypto.randomUUID()}.${extensionByType[file.type]}`;
-        const { error: storageError } = await supabase.storage
+        // The server authenticates the admin and issues a short-lived upload token.
+        // File bytes go directly from this browser to Supabase, not through Vercel.
+        const { path, token } = await createPropertyVideoUpload(propertyId, file.type, file.size);
+        const { error: uploadError } = await supabase.storage
           .from("property-videos")
-          .upload(path, file, {
-            cacheControl: "3600",
-            contentType: file.type,
-            upsert: false,
-          });
-
-        if (storageError) {
-          throw new Error(`Could not upload ${file.name}: ${storageError.message}`);
+          .uploadToSignedUrl(path, token, file, { contentType: file.type, cacheControl: "3600" });
+        if (uploadError) {
+          throw new Error(`Storage upload failed for ${file.name}: ${uploadError.message}`);
         }
 
-        const { data: publicData } = supabase.storage.from("property-videos").getPublicUrl(path);
-        const { data: video, error: insertError } = await supabase
-          .from("property_images")
-          .insert({
-            property_id: propertyId,
-            image_url: "",
-            video_url: publicData.publicUrl,
-            display_order: localVideos.length + uploadedCount,
-            is_floor_plan: false,
-            media_type: "video",
-          })
-          .select("id, property_id, image_url, alt_text, display_order, is_floor_plan, media_type, video_url, created_at")
-          .single();
-
-        if (insertError || !video) {
-          // Avoid leaving an orphaned storage object if saving the DB row fails.
-          await supabase.storage.from("property-videos").remove([path]);
-          throw new Error(`Video uploaded, but its property record could not be saved: ${insertError?.message ?? "Unknown database error"}`);
+        try {
+          const video = await savePropertyVideoRecord(propertyId, path, localVideos.length + completed);
+          setLocalVideos((previous) => [...previous, video as PropertyImage]);
+          completed += 1;
+        } catch (recordError) {
+          throw recordError instanceof Error
+            ? recordError
+            : new Error("The video uploaded, but the property record could not be saved.");
         }
-
-        setLocalVideos((previous) => [...previous, video as PropertyImage]);
-        uploadedCount += 1;
       }
 
       if (inputRef.current) inputRef.current.value = "";
@@ -202,7 +184,7 @@ function BrochureUpload({ propertyId, brochureUrl }: { propertyId: string; broch
       {brochureUrl && <a href={brochureUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-sm border border-stone-200 px-3 py-2 text-sm text-navy hover:bg-stone-50"><FileDown size={15} /> Current brochure</a>}
       <label><span className="inline-block cursor-pointer rounded-sm border border-stone-300 px-3.5 py-2 text-sm font-medium text-navy hover:bg-stone-50">{isPending ? "Uploading..." : brochureUrl ? "Replace Brochure" : "Upload Brochure"}</span><input ref={inputRef} type="file" accept="application/pdf" className="sr-only" onChange={(e) => handleUpload(e.target.files)} disabled={isPending} /></label>
     </div>
-    {error && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} /> {error}</p>}
+    {error && <p role="alert" className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} /> {error}</p>}
   </div>;
 }
 

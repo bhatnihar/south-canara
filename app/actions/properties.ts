@@ -211,7 +211,7 @@ export async function uploadPropertyImage(formData: FormData) {
   const extension = file.name.split(".").pop() ?? "jpg";
   const path = `${propertyId}/${crypto.randomUUID()}.${extension}`;
   const { error: uploadError } = await supabase.storage.from("property-images").upload(path, file, { contentType: file.type, upsert: false });
-  if (uploadError) throw new Error("Image upload failed. Please try again.");
+  if (uploadError) throw new Error(`Image upload failed: ${uploadError.message}`);
 
   const { data: publicData } = supabase.storage.from("property-images").getPublicUrl(path);
   const { error: insertError } = await supabase.from("property_images").insert({
@@ -223,46 +223,85 @@ export async function uploadPropertyImage(formData: FormData) {
   });
   if (insertError) {
     await supabase.storage.from("property-images").remove([path]);
-    throw new Error("Could not save image record.");
+    throw new Error(`Could not save image record: ${insertError.message}`);
   }
   revalidatePropertyPaths();
 }
 
-export async function uploadPropertyVideo(formData: FormData) {
-  const propertyId = String(formData.get("propertyId") ?? "");
-  const displayOrder = Number(formData.get("displayOrder") ?? 0);
-  const file = getFormFile(formData, "file");
+const VIDEO_EXTENSION_BY_TYPE: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+};
+
+/** Create a short-lived, authenticated Storage upload URL. The video bytes
+ * travel from the browser to Supabase, never through the Next.js server. */
+export async function createPropertyVideoUpload(propertyId: string, contentType: string, fileSize: number) {
   const supabase = await requireAdmin();
+  const extension = VIDEO_EXTENSION_BY_TYPE[contentType];
+  if (!extension) throw new Error("Only MP4, WEBM, or MOV videos are allowed.");
+  if (!Number.isSafeInteger(fileSize) || fileSize <= 0 || fileSize > MAX_VIDEO_SIZE_BYTES) {
+    throw new Error("Video must be larger than 0 and no bigger than 200MB.");
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(propertyId)) {
+    throw new Error("Invalid property. Refresh the page and try again.");
+  }
 
-  if (!propertyId) throw new Error("Property is required.");
-  if (!ALLOWED_VIDEO_TYPES.includes(file.type)) throw new Error("Only MP4, WEBM, or MOV videos are allowed.");
-  if (file.size > MAX_VIDEO_SIZE_BYTES) throw new Error("Video must be smaller than 200MB.");
+  const { data: property, error: propertyError } = await supabase
+    .from("properties")
+    .select("id")
+    .eq("id", propertyId)
+    .single();
+  if (propertyError || !property) throw new Error("Property not found or you do not have permission to edit it.");
 
-  const extension = file.name.split(".").pop() ?? "mp4";
   const path = `${propertyId}/${crypto.randomUUID()}.${extension}`;
-  const { error: uploadError } = await supabase.storage.from("property-videos").upload(path, file, { contentType: file.type, upsert: false });
-  if (uploadError) throw new Error("Video upload failed. Please try again.");
+  const { data, error } = await supabase.storage.from("property-videos").createSignedUploadUrl(path, { upsert: false });
+  if (error || !data) {
+    console.error("createPropertyVideoUpload error:", error?.message);
+    throw new Error(`Could not prepare video upload: ${error?.message ?? "Storage returned no upload token"}`);
+  }
+
+  return { path, token: data.token };
+}
+
+/** Save the uploaded video's database record only after Storage confirms the
+ * upload. Revalidate the exact public property route so the video appears now. */
+export async function savePropertyVideoRecord(propertyId: string, path: string, displayOrder: number) {
+  const supabase = await requireAdmin();
+  if (!path.startsWith(`${propertyId}/`) || path.includes("..") || path.split("/").length !== 2) {
+    throw new Error("Invalid video storage path.");
+  }
+
+  const { data: property, error: propertyError } = await supabase
+    .from("properties")
+    .select("id, slug")
+    .eq("id", propertyId)
+    .single();
+  if (propertyError || !property) throw new Error("Property not found or you do not have permission to edit it.");
 
   const { data: publicData } = supabase.storage.from("property-videos").getPublicUrl(path);
-  const { error: insertError } = await supabase.from("property_images").insert({
-    property_id: propertyId,
-    image_url: "",
-    video_url: publicData.publicUrl,
-    display_order: Number.isFinite(displayOrder) ? displayOrder : 0,
-    is_floor_plan: false,
-    media_type: "video",
-  });
-  if (insertError) {
-    await supabase.storage.from("property-videos").remove([path]);
-    throw new Error("Could not save video record.");
-  }
-  revalidatePropertyPaths();
-}
+  const { data: video, error: insertError } = await supabase
+    .from("property_images")
+    .insert({
+      property_id: propertyId,
+      image_url: "",
+      video_url: publicData.publicUrl,
+      display_order: Number.isInteger(displayOrder) && displayOrder >= 0 ? displayOrder : 0,
+      is_floor_plan: false,
+      media_type: "video",
+    })
+    .select("id, property_id, image_url, alt_text, display_order, is_floor_plan, media_type, video_url, created_at")
+    .single();
 
-function storagePathFromPublicUrl(publicUrl: string, bucket: string): string | null {
-  const marker = `/storage/v1/object/public/${bucket}/`;
-  const index = publicUrl.indexOf(marker);
-  return index === -1 ? null : publicUrl.slice(index + marker.length);
+  if (insertError || !video) {
+    await supabase.storage.from("property-videos").remove([path]);
+    console.error("savePropertyVideoRecord error:", insertError?.message);
+    throw new Error(`Video uploaded but its property record could not be saved: ${insertError?.message ?? "No record returned"}`);
+  }
+
+  revalidatePropertyPaths(property.slug);
+  revalidatePath(`/admin/properties/${propertyId}`);
+  return video;
 }
 
 export async function deletePropertyMedia(mediaId: string, propertyId: string) {
@@ -279,6 +318,12 @@ export async function deletePropertyMedia(mediaId: string, propertyId: string) {
   if (error) throw new Error("Could not delete media.");
   revalidatePropertyPaths();
   revalidatePath(`/admin/properties/${propertyId}`);
+}
+
+function storagePathFromPublicUrl(publicUrl: string, bucket: string): string | null {
+  const marker = `/storage/v1/object/public/${bucket}/`;
+  const index = publicUrl.indexOf(marker);
+  return index === -1 ? null : publicUrl.slice(index + marker.length);
 }
 
 export async function uploadBrochure(formData: FormData) {

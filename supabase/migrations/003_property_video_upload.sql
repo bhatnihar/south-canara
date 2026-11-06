@@ -1,14 +1,17 @@
--- Video uploads go directly from the admin browser to Supabase Storage.
--- Apply once in the Supabase SQL Editor (or run with Supabase migrations).
--- Keep this limit in sync with MAX_VIDEO_SIZE_BYTES in lib/validations.ts.
-update storage.buckets
-set
-  public = true,
-  file_size_limit = 209715200,
-  allowed_mime_types = array['video/mp4', 'video/webm', 'video/quicktime']
-where id = 'property-videos';
+-- Property video direct uploads and visibility prerequisites.
+-- Safe to apply repeatedly in the Supabase SQL Editor.
 
--- Idempotently create the bucket if it was not created by schema.sql yet.
+alter table public.property_images
+  add column if not exists media_type text not null default 'image';
+alter table public.property_images
+  add column if not exists video_url text;
+
+do $$ begin
+  alter table public.property_images
+    add constraint property_images_media_type_check check (media_type in ('image', 'video'));
+exception when duplicate_object then null;
+end $$;
+
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'property-videos',
@@ -21,3 +24,49 @@ on conflict (id) do update set
   public = excluded.public,
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
+
+-- Public playback is required for videos on published listing pages.
+drop policy if exists "public read property-videos" on storage.objects;
+create policy "public read property-videos"
+  on storage.objects for select
+  to anon, authenticated
+  using (bucket_id = 'property-videos');
+
+-- Signed-in admin sessions create signed upload URLs and manage video objects.
+drop policy if exists "admin write property-videos" on storage.objects;
+create policy "admin write property-videos"
+  on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'property-videos');
+
+drop policy if exists "admin update property-videos" on storage.objects;
+create policy "admin update property-videos"
+  on storage.objects for update
+  to authenticated
+  using (bucket_id = 'property-videos');
+
+drop policy if exists "admin delete property-videos" on storage.objects;
+create policy "admin delete property-videos"
+  on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'property-videos');
+
+-- Admin editing: permits the signed-in session to create the metadata row.
+drop policy if exists "admin full access property_images" on public.property_images;
+create policy "admin full access property_images"
+  on public.property_images for all
+  to authenticated
+  using (true)
+  with check (true);
+
+-- Public property pages need to read video rows for published properties.
+drop policy if exists "public read images of published properties" on public.property_images;
+create policy "public read images of published properties"
+  on public.property_images for select
+  to anon, authenticated
+  using (
+    exists (
+      select 1 from public.properties p
+      where p.id = property_images.property_id and p.published = true
+    )
+  );
