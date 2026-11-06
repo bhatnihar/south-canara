@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Upload, Trash2, FileDown, AlertCircle, Film } from "lucide-react";
-import { uploadPropertyImage, uploadPropertyVideo, deletePropertyMedia, uploadBrochure } from "@/app/actions/properties";
+import { uploadPropertyImage, deletePropertyMedia, uploadBrochure } from "@/app/actions/properties";
+import { createClient } from "@/lib/supabase/client";
+import { ALLOWED_VIDEO_TYPES, MAX_VIDEO_SIZE_BYTES } from "@/lib/validations";
 import type { PropertyImage } from "@/types";
 
 function UploadSection({ title, helperText, accept, images, propertyId, isFloorPlan }: { title: string; helperText: string; accept: string; images: PropertyImage[]; propertyId: string; isFloorPlan: boolean }) {
@@ -61,35 +64,91 @@ function UploadSection({ title, helperText, accept, images, propertyId, isFloorP
 }
 
 function VideoUploadSection({ videos, propertyId }: { videos: PropertyImage[]; propertyId: string }) {
+  const router = useRouter();
+  const [isUploading, setIsUploading] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [localVideos, setLocalVideos] = useState(videos);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function handleUpload(files: FileList | null) {
-    if (!files?.length) return;
+  async function handleUpload(files: FileList | null) {
+    if (!files?.length || isUploading) return;
     setError(null);
-    startTransition(async () => {
-      for (let i = 0; i < files.length; i++) {
-        try {
-          const formData = new FormData();
-          formData.append("propertyId", propertyId);
-          formData.append("displayOrder", String(localVideos.length + i));
-          formData.append("file", files[i]);
-          await uploadPropertyVideo(formData);
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Upload failed.");
+    setIsUploading(true);
+
+    const supabase = createClient();
+    const selectedFiles = Array.from(files);
+    let uploadedCount = 0;
+
+    try {
+      for (const file of selectedFiles) {
+        if (!ALLOWED_VIDEO_TYPES.includes(file.type)) {
+          throw new Error(`${file.name}: Choose an MP4, WEBM, or MOV video.`);
         }
+        if (file.size === 0 || file.size > MAX_VIDEO_SIZE_BYTES) {
+          throw new Error(`${file.name}: Video must be larger than 0 and no bigger than 200MB.`);
+        }
+
+        // Upload straight from the browser to Supabase Storage. This avoids
+        // sending large video bodies through the Next.js/Vercel server action.
+        const extensionByType: Record<string, string> = {
+          "video/mp4": "mp4",
+          "video/webm": "webm",
+          "video/quicktime": "mov",
+        };
+        const path = `${propertyId}/${crypto.randomUUID()}.${extensionByType[file.type]}`;
+        const { error: storageError } = await supabase.storage
+          .from("property-videos")
+          .upload(path, file, {
+            cacheControl: "3600",
+            contentType: file.type,
+            upsert: false,
+          });
+
+        if (storageError) {
+          throw new Error(`Could not upload ${file.name}: ${storageError.message}`);
+        }
+
+        const { data: publicData } = supabase.storage.from("property-videos").getPublicUrl(path);
+        const { data: video, error: insertError } = await supabase
+          .from("property_images")
+          .insert({
+            property_id: propertyId,
+            image_url: "",
+            video_url: publicData.publicUrl,
+            display_order: localVideos.length + uploadedCount,
+            is_floor_plan: false,
+            media_type: "video",
+          })
+          .select("id, property_id, image_url, alt_text, display_order, is_floor_plan, media_type, video_url, created_at")
+          .single();
+
+        if (insertError || !video) {
+          // Avoid leaving an orphaned storage object if saving the DB row fails.
+          await supabase.storage.from("property-videos").remove([path]);
+          throw new Error(`Video uploaded, but its property record could not be saved: ${insertError?.message ?? "Unknown database error"}`);
+        }
+
+        setLocalVideos((previous) => [...previous, video as PropertyImage]);
+        uploadedCount += 1;
       }
+
       if (inputRef.current) inputRef.current.value = "";
-    });
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Video upload failed. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
   }
 
   function handleDelete(id: string) {
+    setError(null);
     startTransition(async () => {
       try {
         await deletePropertyMedia(id, propertyId);
         setLocalVideos((prev) => prev.filter((video) => video.id !== id));
+        router.refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Delete failed.");
       }
@@ -103,15 +162,15 @@ function VideoUploadSection({ videos, propertyId }: { videos: PropertyImage[]; p
       {localVideos.map((video) => <div key={video.id} className="group relative aspect-video overflow-hidden rounded-sm border border-stone-200 bg-stone-100">
         <video src={video.video_url ?? undefined} className="h-full w-full object-cover" muted preload="metadata" />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-navy-950/20"><Film size={22} className="text-white" /></div>
-        <button type="button" onClick={() => handleDelete(video.id)} disabled={isPending} className="absolute inset-0 flex items-center justify-center bg-navy-950/0 text-white opacity-0 transition-all group-hover:bg-navy-950/60 group-hover:opacity-100" aria-label="Delete video"><Trash2 size={18} /></button>
+        <button type="button" onClick={() => handleDelete(video.id)} disabled={isPending || isUploading} className="absolute inset-0 flex items-center justify-center bg-navy-950/0 text-white opacity-0 transition-all group-hover:bg-navy-950/60 group-hover:opacity-100" aria-label="Delete video"><Trash2 size={18} /></button>
       </div>)}
-      <label className="flex aspect-video cursor-pointer flex-col items-center justify-center gap-1.5 rounded-sm border border-dashed border-stone-300 text-stone-400 hover:border-navy hover:text-navy">
-        <Upload size={18} /><span className="text-xs">Upload video</span>
-        <input ref={inputRef} type="file" accept="video/mp4,video/webm,video/quicktime" multiple className="sr-only" onChange={(e) => handleUpload(e.target.files)} disabled={isPending} />
+      <label className={`flex aspect-video flex-col items-center justify-center gap-1.5 rounded-sm border border-dashed border-stone-300 text-stone-400 ${isUploading ? "cursor-wait opacity-60" : "cursor-pointer hover:border-navy hover:text-navy"}`}>
+        <Upload size={18} /><span className="text-xs">{isUploading ? "Uploading video..." : "Upload video"}</span>
+        <input ref={inputRef} type="file" accept="video/mp4,video/webm,video/quicktime" multiple className="sr-only" onChange={(e) => handleUpload(e.target.files)} disabled={isUploading || isPending} />
       </label>
     </div>
-    {isPending && <p className="mt-2 text-xs text-stone-500">Uploading — large video files can take a little while on a slow connection.</p>}
-    {error && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} /> {error}</p>}
+    {isUploading && <p role="status" className="mt-2 text-xs text-stone-500">Uploading directly to storage. Keep this page open until the upload completes.</p>}
+    {error && <p role="alert" className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} /> {error}</p>}
   </div>;
 }
 
