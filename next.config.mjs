@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "200mb",
+    },
+  },
   images: {
     remotePatterns: [
       // Supabase Storage — public property images & brochures.
